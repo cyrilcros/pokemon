@@ -1,0 +1,11 @@
+black
+gdown
+pytorch==2.2
+torchvision
+imageio
+scipy
+scikit-image
+tensorboard
+matplotlib
+pytorch-cuda==11.8
+ipykernel
