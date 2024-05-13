@@ -88,7 +88,11 @@ if __name__ == '__main__':
     json_file = '/group/dl4miacourse/pokemon/data-chad/First40training_last10validation/First40_training_annotations/labels_first40_2023-10-17-12-04-26.json'
     mask_output_folder = 'train/masks'  # Modify this as needed. Using val2 so my data is not overwritten
     image_output_folder = 'train/images'  # 
-    categories = [(1, "lipid-droplet"), (2, "mito"), (3, "ahhhhh")]
-    main(json_file, mask_output_folder, image_output_folder, original_image_dir)
+    categories = [
+        (1, "mito"),
+        (2, "ld"),
+        (3, "nucleus")
+    ]
+    main(json_file, mask_output_folder, image_output_folder, original_image_dir, categories=categories)
 
 
