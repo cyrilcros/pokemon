@@ -81,10 +81,10 @@ def main(json_file, mask_output_folder, image_output_folder, original_image_dir)
 
 
 if __name__ == '__main__':
-    original_image_dir = 'livecell_train_val_images'  # Where your original images are stored
-    json_file = 'livecell_train_val_images/livecell_coco_val.json'
-    mask_output_folder = 'val2/masks'  # Modify this as needed. Using val2 so my data is not overwritten
-    image_output_folder = 'val2/images'  # 
+    original_image_dir = '/group/dl4miacourse/pokemon/data-chad/First40training_last10validation/First40_training_images/'  # Where your original images are stored
+    json_file = '/group/dl4miacourse/pokemon/data-chad/First40training_last10validation/First40_training_annotations/labels_first40_2023-10-17-12-04-26.json'
+    mask_output_folder = 'train/masks'  # Modify this as needed. Using val2 so my data is not overwritten
+    image_output_folder = 'train/images'  # 
     main(json_file, mask_output_folder, image_output_folder, original_image_dir)
 
 
