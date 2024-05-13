@@ -52,7 +52,7 @@ def create_mask(image_info, annotations, output_folder, category):
 
     # Save the numpy array as a TIFF using tifffile library
     mask_path = os.path.join(output_folder, image_info['file_name'].replace('.png', f'_{category_name}.tif'))
-    tifffile.imsave(mask_path, mask_np)
+    tifffile.imsave(mask_path, mask_np.astype(np.uint8), dtype="uint8")
 
     print(f"Saved mask for {image_info['file_name']} to {mask_path}")
 
