@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from torchvision import transforms
 from scipy.ndimage import distance_transform_edt
-from local import train, NucleiDataset, plot_two, plot_three, plot_four
+from local import train, plot_two, plot_three, plot_four
 from unet import UNet
 from tqdm import tqdm
 import tifffile
@@ -19,3 +19,4 @@ device = "cuda"  # 'cuda', 'cpu', 'mps'
 # make sure gpu is available. Please call a TA if this cell fails
 assert torch.cuda.is_available()
 
+    
