@@ -77,10 +77,10 @@ def main(json_file, mask_output_folder, image_output_folder, original_image_dir,
             create_mask(img, annotations, mask_output_folder, category)
             #
             original_image_path = os.path.join(original_image_dir, img['file_name'])
-            new_image_name = f'{os.path.basename(original_image_path)[:-4]}.tiff'
+            new_image_name = f'{os.path.basename(original_image_path)[:-4]}.tif'
             new_image_path = os.path.join(image_output_folder, new_image_name)
-            png_img = plt.imread(original_image_path)
-            tifffile.imwrite(new_image_path, data=png_img)
+            im = skimage.io.imread(original_image_path)
+            tifffile.imwrite(new_image_path, im)
             print(f"Copied original image to {new_image_path}")
 
 
