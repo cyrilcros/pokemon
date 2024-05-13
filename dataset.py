@@ -10,17 +10,20 @@ class EMDataset(Dataset):
     """ Dataloader class for Chad's electron microscopy data
     Extends torch.utils.data.Dataset
     """
-    def __init__(self,root_dir: str, category:str, transform=None, img_transform=None) -> None:
+    def __init__(self,root_dir: str, category:str, transform=None, 
+                 img_transform=None, return_mask=False) -> None:
         """Initialization
 
         Args:
             root_dir (str): A train / validattion / test folder with images and masks subfolder.
             category (str): An organelle to segment.
-            transform (_type_, optional): Transformation to apply to both images and masks. Defaults to None.
-            img_transform (_type_, optional): Transformation that applies to masks only. Defaults to None.
+            transform (torchvision.transforms, optional): Transformation to apply to both images and masks. Defaults to None.
+            img_transform (torchvision.transforms, optional): Transformation that applies to masks only. Defaults to None.
+            return_mask (boolean): returns mask as well as affinities
 
         Raises:
-            ValueError: If category is not one 'mito', 'ld', 'nucleus'.
+            ValueError: If category is not one 'mito', 'ld', 'nucleus' or folder structure 
+            has no 'masks' and 'images'
         """
         super().__init__()
         # check the categories
@@ -41,6 +44,7 @@ class EMDataset(Dataset):
             transform  # transformations to apply to both inputs and targets
         )
         self.img_transform = img_transform  # transformations to apply to raw image only
+        self.return_mask = return_mask
         #  transformations to apply just to inputs
         inp_transforms = transforms.Compose(
             [
@@ -85,21 +89,76 @@ class EMDataset(Dataset):
             mask = self.transform(mask)
         if self.img_transform is not None:
             image = self.img_transform(image)
-        return image, mask
+        aff_mask = self.create_aff_target(mask)
+        aff_mask = aff_mask[0] + aff_mask[1]
+        if self.return_mask is True:
+            return image, mask, aff_mask
+        else:
+            return image, aff_mask
     
-def show_random_dataset_image(dataset):
+    def create_aff_target(self, mask):
+        aff_target_array = compute_affinities(np.asarray(mask), [[0, 1], [1, 0]])
+        aff_target = torch.from_numpy(aff_target_array)
+        return aff_target.float()
+    
+def compute_affinities(seg: np.ndarray, nhood: list):
+    nhood = np.array(nhood)
+    shape = seg.shape
+    n_edges = nhood.shape[0]
+    affinity = np.zeros((n_edges,) + shape, dtype=np.int32)
+    for e in range(n_edges):
+        affinity[
+            e,
+            max(0, -nhood[e, 0]) : min(shape[0], shape[0] - nhood[e, 0]),
+            max(0, -nhood[e, 1]) : min(shape[1], shape[1] - nhood[e, 1]),
+        ] = (
+            (
+                seg[
+                    max(0, -nhood[e, 0]) : min(shape[0], shape[0] - nhood[e, 0]),
+                    max(0, -nhood[e, 1]) : min(shape[1], shape[1] - nhood[e, 1]),
+                ]
+                == seg[
+                    max(0, nhood[e, 0]) : min(shape[0], shape[0] + nhood[e, 0]),
+                    max(0, nhood[e, 1]) : min(shape[1], shape[1] + nhood[e, 1]),
+                ]
+            )
+            * (
+                seg[
+                    max(0, -nhood[e, 0]) : min(shape[0], shape[0] - nhood[e, 0]),
+                    max(0, -nhood[e, 1]) : min(shape[1], shape[1] - nhood[e, 1]),
+                ]
+                > 0
+            )
+            * (
+                seg[
+                    max(0, nhood[e, 0]) : min(shape[0], shape[0] + nhood[e, 0]),
+                    max(0, nhood[e, 1]) : min(shape[1], shape[1] + nhood[e, 1]),
+                ]
+                > 0
+            )
+        )
+    return affinity
+
+def show_random_dataset_image(dataset, use_mask=True):
     idx = np.random.randint(0, len(dataset))  # take a random sample
-    img, mask = dataset[idx]  # get the image and the nuclei masks
-    f, axarr = plt.subplots(1, 2)  # make two plots on one figure
+    img, affinities, mask = None, None, None
+    if use_mask:
+        img, affinities, mask = dataset[idx]  # get the image and the nuclei masks
+    else:
+        img, affinities = dataset[idx]
+    f, axarr = plt.subplots(1, 2 + (1 if use_mask else 0))  # make two plots on one figure
     axarr[0].imshow(img[0])  # show the image
     axarr[0].set_title("Image")
-    axarr[1].imshow(mask[0], interpolation=None)  # show the masks
-    axarr[1].set_title("Mask")
+    axarr[1].imshow(affinities[0], interpolation=None)  # show the affinities
+    axarr[1].set_title("Affinities")
+    if use_mask:
+        axarr[2].imshow(mask[0], interpolation=None)  # show the masks
+        axarr[2].set_title("Mask")
     _ = [ax.axis("off") for ax in axarr]  # remove the axes
     print("Image size is %s" % {img[0].shape})
     plt.show()
    
 if __name__ == '__main__':
-    train_dataset = EMDataset(root_dir='train', category='nucleus')
+    train_dataset = EMDataset(root_dir='train', category='nucleus', return_mask=True)
     print(f"Loaded a dataset {train_dataset}")
-    show_random_dataset_image(train_dataset)
+    show_random_dataset_image(train_dataset, use_mask=True)
