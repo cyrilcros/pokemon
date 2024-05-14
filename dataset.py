@@ -67,7 +67,7 @@ class EMDataset(Dataset):
             )
             mask = Image.open(mask_path)
             mask.load()
-            self.loaded_masks[sample_ind] = transforms.ToTensor()(mask)
+            self.loaded_masks[sample_ind] = transforms.PILToTensor()(mask)
 
    # get the total number of samples
     def __len__(self):
