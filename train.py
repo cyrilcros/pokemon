@@ -146,5 +146,7 @@ for epoch in range(epoch):
         device=device,
     )
 
-os.mkdir('weights')
-torch.save(unet, f=f"weights/{model_name}.pt")
+weight_folder = 'weights'
+if not os.path.exists(weight_folder):
+    os.mkdir(weight_folder)
+torch.save(unet, f=f"{weight_folder}/{model_name}.pt")
