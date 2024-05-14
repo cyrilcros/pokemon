@@ -180,8 +180,8 @@ for idx, (image, _, mask) in enumerate(tqdm(val_dataloader)):
     precision_list.append(precision)
     recall_list.append(recall)
     accuracy_list.append(accuracy)
-    
-plot_four(image, mask[0], pred[0], pred_labels, label=f"{organelle} sample segmentation")
+
+plot_four(image, mask[0], pred[0], pred_labels, label=f"Target")
 
 print(f"Mean {organelle} Precision is {np.mean(precision_list):.3f}")
 print(f"Mean {organelle} Recall is {np.mean(recall_list):.3f}")
