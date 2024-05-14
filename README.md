@@ -22,5 +22,6 @@ The images are PNG files and the annotations are in a single JSON file. Each ann
 
 ### Actual usage
 
-1. Change the `organelle` variable in `train.py` and run `python train.py`
-2. Change the `organelle` variable in `evaluate.py` and run `python evaluate.py`
+1. Run `convert_polygon_to_tiff.py` to get masks
+2. Change the `organelle` variable in `train.py` and run `python train.py`
+3. Change the `organelle` variable in `evaluate.py` and run `python evaluate.py`
