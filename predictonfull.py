@@ -20,7 +20,7 @@ img_array = Array(
 
 out_array = prepare_ds(
     "full_pred_example.zarr",
-    "test1",
+    "nucleus",
     total_roi=img_array.roi,
     voxel_size=(1, 1),
     dtype=np.float32,
@@ -30,7 +30,7 @@ out_array = prepare_ds(
 
 def process_block():
     client = daisy.Client()
-    unet = torch.load("unet_mito.pt")
+    unet = torch.load("weights/pokemon-unet-nucleus.pt")
 
     while True:
 

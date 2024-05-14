@@ -13,6 +13,8 @@ from skimage.filters import threshold_otsu
 from dataset import EMDataset
 from torch.utils.tensorboard import SummaryWriter
 
+from pathlib import Path
+
 def train(
     model,
     loader,
@@ -117,7 +119,7 @@ device = "cuda"  # 'cuda', 'cpu', 'mps'
 # make sure gpu is available. Please call a TA if this cell fails
 assert torch.cuda.is_available()
 
-organelle = 'ld'
+organelle = 'nucleus'
 model_name = f"pokemon-unet-{organelle}"
 # category is one of 'mito', 'ld', 'nucleus'
 # returns image 1000x1000, affinity 2x1000x1000, and if return_mask a mask 1000x1000
@@ -146,5 +148,6 @@ for epoch in range(epoch):
         device=device,
     )
 
-os.mkdir('weights')
+if Path("weights").exists() is False:
+    os.mkdir('weights')
 torch.save(unet, f=f"weights/{model_name}.pt")
