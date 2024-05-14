@@ -2,6 +2,9 @@ train/*
 validate/*
 runs/*
 weights/*
+daisy_logs/*
+full_pred_example*
+*/.tif*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
