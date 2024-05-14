@@ -1,17 +1,12 @@
-from matplotlib.colors import ListedColormap
-import numpy as np
 import os
 import torch
-from PIL import Image
 from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
-from torchvision import transforms
-from scipy.ndimage import distance_transform_edt
+from torchvision.transforms import v2
 from model import unet
 from tqdm import tqdm
-from skimage.filters import threshold_otsu
 from dataset import EMDataset
 from torch.utils.tensorboard import SummaryWriter
+import random
 
 # category is one of 'mito', 'ld', 'nucleus'
 organelle = 'ld'
@@ -22,7 +17,6 @@ def train(
     optimizer,
     loss_function,
     epoch,
-    log_interval=100,
     log_image_interval=20,
     tb_logger=None,
     device=None,
@@ -63,18 +57,6 @@ def train(
         loss.backward()
         optimizer.step()
 
-        # log to console
-        if batch_id % log_interval == 0:
-            print(
-                "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
-                    epoch,
-                    batch_id * len(x),
-                    len(loader.dataset),
-                    100.0 * batch_id / len(loader),
-                    loss.item(),
-                )
-            )
-
         # log to tensorboard
         if tb_logger is not None:
             step = epoch * len(loader) + batch_id
@@ -87,28 +69,17 @@ def train(
                     tag="input", img_tensor=x.to("cpu"), global_step=step
                 )
                 img_actual = y.to("cpu")
-                # TODO please help fix
-                # tb_logger.add_images(
-                #     tag="target-channel-0",  
-                #     img_tensor = img_actual[:,0].unsqueeze(dim=1),
-                #     global_step=step
-                # )
-                # tb_logger.add_images(
-                #     tag="target-channel-1",  
-                #     img_tensor = img_actual[:,1].unsqueeze(dim=1),
-                #     global_step=step
-                # )
-                # img_pred = prediction.to("cpu").detach()
-                # tb_logger.add_images(
-                #     tag="prediction-channel-0",
-                #     img_tensor=img_pred[:,0].unsqueeze(dim=1),
-                #     global_step=step,
-                # )
-                # tb_logger.add_images(
-                #     tag="prediction-channel-1",
-                #     img_tensor=img_pred[:,1].unsqueeze(dim=1),
-                #     global_step=step,
-                # )
+                tb_logger.add_images(
+                    tag="target",  
+                    img_tensor = (0.5 * img_actual[:,0] + 0.5*img_actual[:,1]).unsqueeze(dim=1),
+                    global_step=step
+                )
+                img_pred = prediction.to("cpu").detach()
+                tb_logger.add_images(
+                    tag="pred",  
+                    img_tensor = (0.5 * img_pred[:,0] + 0.5*img_pred[:,1]).unsqueeze(dim=1),
+                    global_step=step
+                )
 
         if early_stop and batch_id > 5:
             print("Stopping test early!")
@@ -122,8 +93,21 @@ assert torch.cuda.is_available()
 
 model_name = f"pokemon-unet-{organelle}"
 
+# transforms
+
+def random90(img):
+    k = random.randint(0,3)
+    return torch.rot90(img, k)
+
+transform_to_do = v2.Compose([
+    v2.RandomCrop(256),
+    v2.RandomHorizontalFlip(),
+    v2.RandomVerticalFlip(),
+    v2.Lambda(random90)
+])
+
 # returns image 1000x1000, affinity 2x1000x1000, and if return_mask a mask 1000x1000
-train_dataset = EMDataset(root_dir='train', category=organelle, return_mask=False, transform=transforms.RandomCrop(256))
+train_dataset = EMDataset(root_dir='train', category=organelle, return_mask=False, transform=transform_to_do)
 
 # dataloader from train dataset
 train_loader = DataLoader(train_dataset, batch_size=5, shuffle=True, num_workers=8)
@@ -131,10 +115,10 @@ train_loader = DataLoader(train_dataset, batch_size=5, shuffle=True, num_workers
 # Logger
 logger = SummaryWriter(f"runs/{model_name}")
 
-learning_rate = 1e-4
+learning_rate = 5e-5
 loss = torch.nn.BCELoss()
 optimizer = torch.optim.Adam(unet.parameters(), lr=learning_rate)
-epoch = 30
+epoch = 100
 
 for epoch in range(epoch):
     train(
@@ -144,7 +128,6 @@ for epoch in range(epoch):
         loss,
         epoch,
         tb_logger=logger,
-        log_interval=10,
         device=device,
     )
 

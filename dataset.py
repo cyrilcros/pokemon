@@ -1,5 +1,5 @@
 from torch.utils.data import Dataset
-from torchvision import transforms
+from torchvision.transforms import v2
 import os
 import torch
 from PIL import Image
@@ -46,10 +46,11 @@ class EMDataset(Dataset):
         self.img_transform = img_transform  # transformations to apply to raw image only
         self.return_mask = return_mask
         #  transformations to apply just to inputs
-        inp_transforms = transforms.Compose(
+        inp_transforms = v2.Compose(
             [
-                transforms.ToTensor(),
-                transforms.Normalize([0.5], [0.5]),  # 0.5 = mean and 0.5 = variance
+                v2.ToImage(), 
+                v2.ToDtype(torch.float32, scale=True)
+                #v2.Normalize([1], [1]),  # 0.5 = mean and 0.5 = variance
             ]
         )
         #  transformations to apply just to inputs
@@ -67,7 +68,7 @@ class EMDataset(Dataset):
             )
             mask = Image.open(mask_path)
             mask.load()
-            self.loaded_masks[sample_ind] = transforms.PILToTensor()(mask)
+            self.loaded_masks[sample_ind] = v2.PILToTensor()(mask)
 
    # get the total number of samples
     def __len__(self):
