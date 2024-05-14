@@ -9,6 +9,8 @@ from skimage.segmentation import watershed
 from scipy.ndimage import label, maximum_filter
 from skimage.filters import threshold_otsu
 from scipy.ndimage import distance_transform_edt
+from matplotlib import pyplot as plt
+from matplotlib import ticker, gridspec
 
 device = "cuda"  # 'cuda', 'cpu', 'mps'
 assert torch.cuda.is_available()
@@ -41,6 +43,41 @@ def find_local_maxima(distance_transform, min_dist_between_points):
     # Uniquely label the local maxima
     seeds, n = label(maxima)
     return seeds, n
+
+def plot_four(
+    image: np.ndarray,
+    intermediate: np.ndarray,
+    pred: np.ndarray,
+    seg: np.ndarray,
+    label: str = "Target",
+    cmap: str = "nipy_spectral",
+):
+    """
+    Helper function to plot an image, the auxiliary (intermediate)
+    representation of the target, the model prediction and the predicted segmentation mask.
+    """
+    fig = plt.figure(constrained_layout=False, figsize=(10, 3))
+    spec = gridspec.GridSpec(ncols=4, nrows=1, figure=fig)
+    ax1 = fig.add_subplot(spec[0, 0])
+    ax1.imshow(image)  # show the image
+    ax1.set_xlabel("Image", fontsize=20)
+    ax2 = fig.add_subplot(spec[0, 1])
+    ax2.imshow(intermediate)  # show the masks
+    ax2.set_xlabel(label, fontsize=20)
+    ax3 = fig.add_subplot(spec[0, 2])
+    t = ax3.imshow(pred)
+    ax3.set_xlabel("Pred.", fontsize=20)
+    tick_locator = ticker.MaxNLocator(nbins=3)
+    cbar = fig.colorbar(t, fraction=0.046, pad=0.04)
+    cbar.locator = tick_locator
+    cbar.update_ticks()
+    ax4 = fig.add_subplot(spec[0, 3])
+    ax4.imshow(seg, cmap=cmap, interpolation="none")
+    ax4.set_xlabel("Seg.", fontsize=20)
+    _ = [ax.set_xticks([]) for ax in [ax1, ax2, ax3, ax4]]  # remove the xticks
+    _ = [ax.set_yticks([]) for ax in [ax1, ax2, ax3, ax4]]  # remove the yticks
+    plt.tight_layout()
+    plt.show()
 
 def evaluate(gt_labels: np.ndarray, pred_labels: np.ndarray, th: float = 0.5):
     """Function to evaluate a segmentation."""
@@ -126,24 +163,16 @@ def watershed_from_boundary_distance(
 
 for idx, (image, _, mask) in enumerate(tqdm(val_dataloader)):
     image = image.to(device).unsqueeze(0)
-
     with torch.no_grad():
         pred = unet(image)
-
     image = np.squeeze(image.cpu())
-
     gt_labels = np.squeeze(mask.cpu().numpy())
-
     pred = np.squeeze(pred.cpu().detach().numpy())
-
     # feel free to try different thresholds
     thresh = threshold_otsu(pred)
-
     # get boundary mask
     inner_mask = 0.5 * (pred[0] + pred[1]) > thresh
-
     boundary_distances = distance_transform_edt(inner_mask)
-
     pred_labels = watershed_from_boundary_distance(
         boundary_distances, inner_mask, id_offset=0, min_seed_distance=20
     )
@@ -151,8 +180,10 @@ for idx, (image, _, mask) in enumerate(tqdm(val_dataloader)):
     precision_list.append(precision)
     recall_list.append(recall)
     accuracy_list.append(accuracy)
+    
+plot_four(image, mask[0], pred[0], pred_labels, label=f"{organelle} sample segmentation")
 
-print(f"Mean Precision is {np.mean(precision_list):.3f}")
-print(f"Mean Recall is {np.mean(recall_list):.3f}")
-print(f"Mean Accuracy is {np.mean(accuracy_list):.3f}")
+print(f"Mean {organelle} Precision is {np.mean(precision_list):.3f}")
+print(f"Mean {organelle} Recall is {np.mean(recall_list):.3f}")
+print(f"Mean {organelle} Accuracy is {np.mean(accuracy_list):.3f}")
     
