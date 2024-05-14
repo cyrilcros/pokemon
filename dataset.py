@@ -77,8 +77,8 @@ class EMDataset(Dataset):
     def __getitem__(self, idx):
         # we'll be using Pillow library for reading files
         # since many torchvision transforms operate on PIL images
-        image = self.loaded_imgs[idx]
-        mask = self.loaded_masks[idx]
+        image = self.loaded_imgs[idx][0]
+        mask = self.loaded_masks[idx][0]
         if self.transform is not None:
             # Note: using seeds to ensure the same random transform is applied to
             # the image and mask
@@ -90,9 +90,8 @@ class EMDataset(Dataset):
         if self.img_transform is not None:
             image = self.img_transform(image)
         aff_mask = self.create_aff_target(mask)
-        aff_mask = aff_mask[0] + aff_mask[1]
         if self.return_mask is True:
-            return image, mask, aff_mask
+            return image, aff_mask, mask
         else:
             return image, aff_mask
     
@@ -100,12 +99,15 @@ class EMDataset(Dataset):
         aff_target_array = compute_affinities(np.asarray(mask), [[0, 1], [1, 0]])
         aff_target = torch.from_numpy(aff_target_array)
         return aff_target.float()
-    
+
 def compute_affinities(seg: np.ndarray, nhood: list):
+
     nhood = np.array(nhood)
+
     shape = seg.shape
     n_edges = nhood.shape[0]
     affinity = np.zeros((n_edges,) + shape, dtype=np.int32)
+
     for e in range(n_edges):
         affinity[
             e,
@@ -137,6 +139,7 @@ def compute_affinities(seg: np.ndarray, nhood: list):
                 > 0
             )
         )
+
     return affinity
 
 def show_random_dataset_image(dataset, use_mask=True):
@@ -147,18 +150,19 @@ def show_random_dataset_image(dataset, use_mask=True):
     else:
         img, affinities = dataset[idx]
     f, axarr = plt.subplots(1, 2 + (1 if use_mask else 0))  # make two plots on one figure
-    axarr[0].imshow(img[0])  # show the image
+    axarr[0].imshow(img)  # show the image
     axarr[0].set_title("Image")
-    axarr[1].imshow(affinities[0], interpolation=None)  # show the affinities
-    axarr[1].set_title("Affinities")
+    axarr[1].imshow(affinities[0], alpha=0.5, cmap="Reds")
+    axarr[1].set_title("Affinities mixed")
+    axarr[1].imshow(affinities[1], alpha=0.5, cmap="Greens")
     if use_mask:
-        axarr[2].imshow(mask[0], interpolation=None)  # show the masks
+        axarr[2].imshow(mask, interpolation=None)  # show the masks
         axarr[2].set_title("Mask")
     _ = [ax.axis("off") for ax in axarr]  # remove the axes
-    print("Image size is %s" % {img[0].shape})
+    print("Image size is %s" % {img.shape})
     plt.show()
    
 if __name__ == '__main__':
-    train_dataset = EMDataset(root_dir='train', category='nucleus', return_mask=True)
+    train_dataset = EMDataset(root_dir='train', category='ld', return_mask=True)
     print(f"Loaded a dataset {train_dataset}")
     show_random_dataset_image(train_dataset, use_mask=True)
