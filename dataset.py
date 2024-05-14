@@ -97,7 +97,7 @@ class EMDataset(Dataset):
             return image, aff_mask
     
     def create_aff_target(self, mask):
-        aff_target_array = compute_affinities(np.asarray(mask), [[0, 1], [1, 0]])
+        aff_target_array = compute_affinities(np.asarray(mask[0]), [[0, 1], [1, 0]])
         aff_target = torch.from_numpy(aff_target_array)
         return aff_target.float()
 
@@ -151,28 +151,35 @@ def show_random_dataset_image(dataset, use_mask=True):
         img, affinities, mask = dataset[idx]  # get the image and the nuclei masks
     else:
         img, affinities = dataset[idx]
-    f, axarr = plt.subplots(1, 2 + (1 if use_mask else 0))  # make two plots on one figure
+    f, axarr = plt.subplots(1, 3 + (1 if use_mask else 0))  # make two plots on one figure
     axarr[0].imshow(img[0])  # show the image
     axarr[0].set_title("Image")
     # affinities_sq = torch.squeeze(affinities)
     # affinities_cat = torch.cat((affinities, torch.unsqueeze_copy(affinities[1], dim=0)))
-    affinities_cat = torch.stack([affinities[0], affinities[0], affinities[1]], dim=-1)
+    # affinities_cat = torch.stack([affinities[0], affinities[0], affinities[1]], dim=-1)
     # affinities_cat = affinities_cat.permute([1,2,0])
-    axarr[1].imshow(affinities_cat, interpolation=None)  # show the affinities
-    axarr[1].set_title("Affinities")
+    # axarr[1].imshow(affinities_cat, interpolation=None)  # show the affinities
+    axarr[1].imshow(affinities[0], alpha=0.5, cmap="Reds")
+    
+    axarr[1].set_title("Affinities row")
+    axarr[2].imshow(affinities[1], alpha=0.5, cmap="Greens")
+    axarr[2].set_title("Affinities cols")
     if use_mask:
-        axarr[2].imshow(mask[0], interpolation=None)  # show the masks
-        axarr[2].set_title("Mask")
+        axarr[3].imshow(mask[0], interpolation=None)  # show the masks
+        axarr[3].set_title("Mask")
     _ = [ax.axis("off") for ax in axarr]  # remove the axes
     print("Image size is %s" % {img[0].shape})
     plt.show()
    
 if __name__ == '__main__':
 
-    affs = compute_affinities(np.array([[1,1,0],[1,1,0],[0,0,0]]), [[1,0],[0,1]])
-    plt.imshow(np.array([affs[0], affs[0], affs[1]])*255)
-    plt.show()
+    # affs = compute_affinities(np.array([[1,1,0],[1,1,0],[0,0,0]]), [[1,0],[0,1]])
+    # print(np.array([affs[0], affs[0], affs[1]])*255)
+    # # plt.imshow(np.array([affs[0], affs[0], affs[1]])*255)
+    # plt.imshow(affs[0], alpha=0.5, cmap="Reds")
+    # plt.imshow(affs[1], alpha=0.5, cmap="Greens")
+    # plt.show()
 
-    train_dataset = EMDataset(root_dir='train', category='nucleus', return_mask=True)
+    train_dataset = EMDataset(root_dir='train', category='ld', return_mask=True)
     print(f"Loaded a dataset {train_dataset}")
     show_random_dataset_image(train_dataset, use_mask=True)
