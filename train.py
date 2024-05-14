@@ -7,11 +7,94 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from torchvision import transforms
 from scipy.ndimage import distance_transform_edt
-from local import train, plot_two, plot_three, plot_four
-from unet import UNet
+from model import unet
 from tqdm import tqdm
-import tifffile
 from skimage.filters import threshold_otsu
+from dataset import EMDataset
+from torch.utils.tensorboard import SummaryWriter
+
+def train(
+    model,
+    loader,
+    optimizer,
+    loss_function,
+    epoch,
+    log_interval=100,
+    log_image_interval=20,
+    tb_logger=None,
+    device=None,
+    early_stop=False,
+):
+    if device is None:
+        # You can pass in a device or we will default to using
+        # the gpu. Feel free to try training on the cpu to see
+        # what sort of performance difference there is
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+        else:
+            device = torch.device("cpu")
+
+    # set the model to train mode
+    model.train()
+
+    # move model to device
+    model = model.to(device)
+
+    # iterate over the batches of this epoch
+    for batch_id, (x, y) in enumerate(loader):
+        # move input and target to the active device (either cpu or gpu)
+        x, y = x.to(device), y.to(device)
+        x = x.unsqueeze(1)
+        # zero the gradients for this iteration
+        optimizer.zero_grad()
+
+        # apply model and calculate loss
+        prediction = model(x)
+        # if prediction.shape != y.shape: #remove TODO
+        #     y = crop(y, prediction)
+        if y.dtype != prediction.dtype:
+            y = y.type(prediction.dtype)
+        loss = loss_function(prediction, y)
+
+        # backpropagate the loss and adjust the parameters
+        loss.backward()
+        optimizer.step()
+
+        # log to console
+        if batch_id % log_interval == 0:
+            print(
+                "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
+                    epoch,
+                    batch_id * len(x),
+                    len(loader.dataset),
+                    100.0 * batch_id / len(loader),
+                    loss.item(),
+                )
+            )
+
+        # log to tensorboard
+        if tb_logger is not None:
+            step = epoch * len(loader) + batch_id
+            tb_logger.add_scalar(
+                tag="train_loss", scalar_value=loss.item(), global_step=step
+            )
+            # check if we log images in this iteration
+            # if step % log_image_interval == 0:
+            #     tb_logger.add_images(
+            #         tag="input", img_tensor=x.to("cpu"), global_step=step
+            #     )
+            #     tb_logger.add_images(
+            #         tag="target", img_tensor=y.to("cpu"), global_step=step
+            #     )
+            #     tb_logger.add_images(
+            #         tag="prediction",
+            #         img_tensor=prediction.to("cpu").detach(),
+            #         global_step=step,
+            #     )
+
+        if early_stop and batch_id > 5:
+            print("Stopping test early!")
+            break
 
 #import dataset and model
 #from dataset import ....
@@ -19,10 +102,16 @@ device = "cuda"  # 'cuda', 'cpu', 'mps'
 # make sure gpu is available. Please call a TA if this cell fails
 assert torch.cuda.is_available()
 
+organelle = 'ld'
+# category is one of 'mito', 'ld', 'nucleus'
+# returns image 1000x1000, affinity 2x1000x1000, and if return_mask a mask 1000x1000
+train_dataset = EMDataset(root_dir='train', category=organelle, return_mask=False, transform=transforms.RandomCrop(256))
 
+# dataloader from train dataset
+train_loader = DataLoader(train_dataset, batch_size=5, shuffle=True, num_workers=8)
 
-
-#get dataloader
+# Logger
+logger = SummaryWriter(f"runs/Unet-{organelle}")
 
 learning_rate = 1e-4
 loss = torch.nn.MSELoss()
@@ -36,43 +125,7 @@ for epoch in range(epoch):
         optimizer,
         loss,
         epoch,
+        tb_logger=logger,
         log_interval=10,
         device=device,
     )
-
-
-val_data = #get validation dataset
-unet.eval()
-idx = np.random.randint(len(val_data))  # take a random sample. or 
-image, sdt = val_data[idx]  # get the image and the nuclei masks.
-image = image.to(device)
-pred = unet(torch.unsqueeze(image, dim=0))
-image = np.squeeze(image.cpu())
-sdt = np.squeeze(sdt.cpu().numpy())
-pred = np.squeeze(pred.cpu().detach().numpy())
-plot_three(image, sdt, pred)
-
-
-idx = np.random.randint(len(val_data))  # take a random sample
-image, mask = val_data[idx]  # get the image and the nuclei masks
-
-# Hint: make sure set the model to evaluation
-unet.eval()
-
-image = image.to(device)
-pred = unet(torch.unsqueeze(image, dim=0))
-
-image = np.squeeze(image.cpu())
-mask = np.squeeze(mask.cpu().numpy())
-pred = np.squeeze(pred.cpu().detach().numpy())
-
-# Choose a threshold value to use to get the boundary mask.
-# Feel free to play around with the threshold.
-threshold = threshold_otsu(pred)
-print(f"Foreground threshold is {threshold:.3f}")
-
-# Get inner mask
-inner_mask = get_inner_mask(pred, threshold=threshold)
-
-# Get the segmentation
-seg = watershed_from_boundary_distance(pred, inner_mask, min_seed_distance=20)
