@@ -116,7 +116,7 @@ train_loader = DataLoader(train_dataset, batch_size=5, shuffle=True, num_workers
 logger = SummaryWriter(f"runs/Unet-{organelle}")
 
 learning_rate = 1e-4
-loss = torch.nn.MSELoss()
+loss = torch.nn.BCELoss()
 optimizer = torch.optim.Adam(unet.parameters(), lr=learning_rate)
 epoch = 30
 
