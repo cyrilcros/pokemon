@@ -13,6 +13,9 @@ from skimage.filters import threshold_otsu
 from dataset import EMDataset
 from torch.utils.tensorboard import SummaryWriter
 
+# category is one of 'mito', 'ld', 'nucleus'
+organelle = 'ld'
+
 def train(
     model,
     loader,
@@ -117,9 +120,8 @@ device = "cuda"  # 'cuda', 'cpu', 'mps'
 # make sure gpu is available. Please call a TA if this cell fails
 assert torch.cuda.is_available()
 
-organelle = 'ld'
 model_name = f"pokemon-unet-{organelle}"
-# category is one of 'mito', 'ld', 'nucleus'
+
 # returns image 1000x1000, affinity 2x1000x1000, and if return_mask a mask 1000x1000
 train_dataset = EMDataset(root_dir='train', category=organelle, return_mask=False, transform=transforms.RandomCrop(256))
 

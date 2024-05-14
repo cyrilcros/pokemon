@@ -12,11 +12,12 @@ from scipy.ndimage import distance_transform_edt
 from matplotlib import pyplot as plt
 from matplotlib import ticker, gridspec
 
+# category is one of 'mito', 'ld', 'nucleus'
+organelle = 'ld'
+
 device = "cuda"  # 'cuda', 'cpu', 'mps'
 assert torch.cuda.is_available()
 
-# category is one of 'mito', 'ld', 'nucleus'
-organelle = 'ld'
 model_name = f"pokemon-unet-{organelle}"
 unet = torch.load(f=f"weights/{model_name}.pt")
 
