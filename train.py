@@ -83,22 +83,29 @@ def train(
                 tb_logger.add_images(
                     tag="input", img_tensor=x.to("cpu"), global_step=step
                 )
-                img_pred = y.to("cpu")
-                tb_logger.add_images(
-                    tag="target-channnel-0",  
-                    img_tensor = img_pred[:,0].unsqueeze(dim=1),
-                    global_step=step
-                )
-                tb_logger.add_images(
-                    tag="target-channel-1",  
-                    img_tensor = img_pred[:,1].unsqueeze(dim=1),
-                    global_step=step
-                )
-                tb_logger.add_images(
-                    tag="prediction",
-                    img_tensor=prediction.to("cpu").detach(),
-                    global_step=step,
-                )
+                img_actual = y.to("cpu")
+                # TODO please help fix
+                # tb_logger.add_images(
+                #     tag="target-channel-0",  
+                #     img_tensor = img_actual[:,0].unsqueeze(dim=1),
+                #     global_step=step
+                # )
+                # tb_logger.add_images(
+                #     tag="target-channel-1",  
+                #     img_tensor = img_actual[:,1].unsqueeze(dim=1),
+                #     global_step=step
+                # )
+                # img_pred = prediction.to("cpu").detach()
+                # tb_logger.add_images(
+                #     tag="prediction-channel-0",
+                #     img_tensor=img_pred[:,0].unsqueeze(dim=1),
+                #     global_step=step,
+                # )
+                # tb_logger.add_images(
+                #     tag="prediction-channel-1",
+                #     img_tensor=img_pred[:,1].unsqueeze(dim=1),
+                #     global_step=step,
+                # )
 
         if early_stop and batch_id > 5:
             print("Stopping test early!")
