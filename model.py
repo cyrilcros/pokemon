@@ -286,8 +286,8 @@ class UNet(torch.nn.Module):
 unet = UNet(
     depth=4,
     in_channels=1,
-    out_channels=1,
-    final_activation="Tanh",
+    out_channels=2,
+    final_activation="Sigmoid",
     num_fmaps=64,
     fmap_inc_factor=3,
     downsample_factor=2,
