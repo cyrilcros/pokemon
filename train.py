@@ -79,18 +79,20 @@ def train(
                 tag="train_loss", scalar_value=loss.item(), global_step=step
             )
             # check if we log images in this iteration
-            # if step % log_image_interval == 0:
-            #     tb_logger.add_images(
-            #         tag="input", img_tensor=x.to("cpu"), global_step=step
-            #     )
-            #     tb_logger.add_images(
-            #         tag="target", img_tensor=y.to("cpu"), global_step=step
-            #     )
-            #     tb_logger.add_images(
-            #         tag="prediction",
-            #         img_tensor=prediction.to("cpu").detach(),
-            #         global_step=step,
-            #     )
+            if step % log_image_interval == 0:
+                tb_logger.add_images(
+                    tag="input", img_tensor=x.to("cpu"), global_step=step
+                )
+                img_pred = y.to("cpu")
+                img_pred = (img_pred[:,0]+img_pred[:,1]).unsqueeze(dim=1)
+                tb_logger.add_images(
+                    tag="target", img_tensor=img_pred, global_step=step
+                )
+                tb_logger.add_images(
+                    tag="prediction",
+                    img_tensor=prediction.to("cpu").detach(),
+                    global_step=step,
+                )
 
         if early_stop and batch_id > 5:
             print("Stopping test early!")
