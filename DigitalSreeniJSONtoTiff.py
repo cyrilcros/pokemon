@@ -85,15 +85,24 @@ def main(json_file, mask_output_folder, image_output_folder, original_image_dir,
 
 
 if __name__ == '__main__':
-    original_image_dir = '/group/dl4miacourse/pokemon/data-chad/First40training_last10validation/First40_training_images/'  # Where your original images are stored
-    json_file = '/group/dl4miacourse/pokemon/data-chad/First40training_last10validation/First40_training_annotations/labels_first40_2023-10-17-12-04-26.json'
-    mask_output_folder = 'train/masks'  # Modify this as needed. Using val2 so my data is not overwritten
-    image_output_folder = 'train/images'  # 
     categories = [
         (1, "mito"),
         (2, "ld"),
         (3, "nucleus")
     ]
-    main(json_file, mask_output_folder, image_output_folder, original_image_dir, categories=categories)
-
-
+    # train
+    main(
+        json_file='/group/dl4miacourse/pokemon/data-chad/First40training_last10validation/First40_training_annotations/labels_first40_2023-10-17-12-04-26.json', 
+        mask_output_folder='train/masks', 
+        image_output_folder='train/images', 
+        original_image_dir='/group/dl4miacourse/pokemon/data-chad/First40training_last10validation/First40_training_images/',
+        categories=categories
+    )
+    # validate
+    main(
+        json_file='/group/dl4miacourse/pokemon/data-chad/First40training_last10validation/Last10_validation_annotations/labels_89-98_Validation_2023-10-17-11-51-50.json', 
+        mask_output_folder='validate/masks', 
+        image_output_folder='validate/images', 
+        original_image_dir='/group/dl4miacourse/pokemon/data-chad/First40training_last10validation/Last10_validation_images/',
+        categories=categories
+    )

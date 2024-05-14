@@ -84,9 +84,15 @@ def train(
                     tag="input", img_tensor=x.to("cpu"), global_step=step
                 )
                 img_pred = y.to("cpu")
-                img_pred = (img_pred[:,0]+img_pred[:,1]).unsqueeze(dim=1)
                 tb_logger.add_images(
-                    tag="target", img_tensor=img_pred, global_step=step
+                    tag="target-channnel-0",  
+                    img_tensor = img_pred[:,0].unsqueeze(dim=1),
+                    global_step=step
+                )
+                tb_logger.add_images(
+                    tag="target-channel-1",  
+                    img_tensor = img_pred[:,1].unsqueeze(dim=1),
+                    global_step=step
                 )
                 tb_logger.add_images(
                     tag="prediction",
@@ -105,6 +111,7 @@ device = "cuda"  # 'cuda', 'cpu', 'mps'
 assert torch.cuda.is_available()
 
 organelle = 'ld'
+model_name = f"pokemon-unet-{organelle}"
 # category is one of 'mito', 'ld', 'nucleus'
 # returns image 1000x1000, affinity 2x1000x1000, and if return_mask a mask 1000x1000
 train_dataset = EMDataset(root_dir='train', category=organelle, return_mask=False, transform=transforms.RandomCrop(256))
@@ -113,7 +120,7 @@ train_dataset = EMDataset(root_dir='train', category=organelle, return_mask=Fals
 train_loader = DataLoader(train_dataset, batch_size=5, shuffle=True, num_workers=8)
 
 # Logger
-logger = SummaryWriter(f"runs/Unet-{organelle}")
+logger = SummaryWriter(f"runs/{model_name}")
 
 learning_rate = 1e-4
 loss = torch.nn.MSELoss()
@@ -131,3 +138,6 @@ for epoch in range(epoch):
         log_interval=10,
         device=device,
     )
+
+os.mkdir('weights')
+torch.save(unet, f=f"weights/{model_name}.pt")
