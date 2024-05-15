@@ -10,3 +10,4 @@ matplotlib
 pytorch-cuda==11.8
 ipykernel
 zarr
+funlib.geometry
