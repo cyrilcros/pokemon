@@ -143,27 +143,33 @@ def compute_affinities(seg: np.ndarray, nhood: list):
 
     return affinity
 
-def show_random_dataset_image(dataset, use_mask=True):
-    idx = np.random.randint(0, len(dataset))  # take a random sample
+def show_random_dataset_image(dataset, nb: int, use_mask=True):
+    assert nb>0
+    indices = np.random.choice(a=len(dataset), size=nb, replace=False)
+    f, axarr = plt.subplots(nb, 2 + (1 if use_mask else 0))  # make two plots on one figure
+    axarr[0,0].set_title("Image")
+    axarr[0,1].set_title("Affinities mixed")
+    if use_mask:
+        axarr[0,2].set_title("Mask")
     img, affinities, mask = None, None, None
-    if use_mask:
-        img, affinities, mask = dataset[idx]  # get the image and the nuclei masks
-    else:
-        img, affinities = dataset[idx]
-    f, axarr = plt.subplots(1, 2 + (1 if use_mask else 0))  # make two plots on one figure
-    axarr[0].imshow(img)  # show the image
-    axarr[0].set_title("Image")
-    axarr[1].imshow(affinities[0], alpha=0.5, cmap="Reds")
-    axarr[1].set_title("Affinities mixed")
-    axarr[1].imshow(affinities[1], alpha=0.5, cmap="Greens")
-    if use_mask:
-        axarr[2].imshow(mask, interpolation=None)  # show the masks
-        axarr[2].set_title("Mask")
-    _ = [ax.axis("off") for ax in axarr]  # remove the axes
+    for pos,idx in enumerate(indices):
+        if use_mask:
+            img, affinities, mask = dataset[idx]  # get the image and the nuclei masks
+        else:
+            img, affinities = dataset[idx[0]]
+        axarr[pos,0].imshow(img)  # show the image
+        axarr[pos,1].imshow(affinities[0], alpha=0.5, cmap="Reds")
+        axarr[pos,1].imshow(affinities[1], alpha=0.5, cmap="Greens")
+        if use_mask:
+            axarr[pos,2].imshow(mask, interpolation=None)  # show the masks
+    for ax_c in axarr:
+        for ax in ax_c:
+            _ = ax.axis("off")  # remove the axes
     print("Image size is %s" % {img.shape})
+    plt.tight_layout()
     plt.show()
    
 if __name__ == '__main__':
-    train_dataset = EMDataset(root_dir='train', category='ld', return_mask=True)
+    train_dataset = EMDataset(root_dir='train', category='nucleus', return_mask=True)
     print(f"Loaded a dataset {train_dataset}")
-    show_random_dataset_image(train_dataset, use_mask=True)
+    show_random_dataset_image(train_dataset, nb=5, use_mask=True)
