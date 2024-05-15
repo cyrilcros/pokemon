@@ -156,8 +156,12 @@ def instance_overlap_measure(pred_labels: np.ndarray, gt_labels: np.ndarray, th:
     return {'tp': tp, 'fp': fp, 'fn': fn}
 
 def evaluate(gt_labels: np.ndarray, pred_labels: np.ndarray) -> dict[str: dict[str: int]]:
-    """Function to evaluate a segmentation."""
-    """Will return for each metric tp, fp, fn, fp"""
+    """Will compute various measures comparing ground truth and predicted segmentations
+
+    Returns:
+        dict[str: dict[str: int]] Associates a measurement name with a dict of true/false
+        positive/negative
+    """
     # values to be returned
     measures = {}
     # computation
@@ -168,13 +172,26 @@ def evaluate(gt_labels: np.ndarray, pred_labels: np.ndarray) -> dict[str: dict[s
     return measures
 
 def reduce_multiple_measures(measure_dict_list: list[dict]) -> dict:
+    """_summary_
+
+    Args:
+        measure_dict_list (list[dict]): _description_
+
+    Returns:
+        dict: _description_
+    """
     measures_merged = defaultdict(int)
     for measure_dict in measure_dict_list:
         for key, val in measure_dict.items():
             measures_merged[key] += val
     return measures_merged
 
-def compute_metrics(measures: dict[str: dict[str: int]], epsilon = 1e-3) -> dict[str: dict[str: int]]:
+def computed_metrics(measures: dict[str: dict[str: int]], epsilon = 1e-3) -> dict[str: dict[str: int]]:
+    """_summary_
+
+    Returns:
+        _type_: _description_
+    """
     metrics = {
         'precision': lambda vals : vals['tp'] / max(1, vals['tp'] + vals['fp']),
         'recall': lambda vals : vals['tp'] / max(1, vals['tp'] + vals['fn']),
@@ -187,17 +204,15 @@ def compute_metrics(measures: dict[str: dict[str: int]], epsilon = 1e-3) -> dict
 def run_eval(organelle: str, device: str, unet: UNet, stats_power = 100, patch_size=256) -> dict:
     # category is one of 'mito', 'ld', 'nucleus'
     # return mask must be true here!
+    unet.eval()
+    collected_metrics = []
     val_dataset = EMDataset(root_dir='validate/', category=organelle, 
                             return_mask=True, transform=v2.RandomCrop(patch_size))
-    val_sampler = RandomSampler(data_source=val_dataset, replacement=True, num_samples=quit_thres+10)
+    val_sampler = RandomSampler(data_source=val_dataset, replacement=True, num_samples=stats_power+1)
     val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=8, sampler=val_sampler)
-    unet.eval()
-    accepted_validation_images, seen_images = 0, 0
-    array_to_check = np.array(shape = [stats_power, 2, patch_size, patch_size])
     for loaded_vals in val_dataloader:
         if accepted_validation_images > stats_power:
             break
-        seen_images += 1
         mask = loaded_vals.pop()
         gt_labels = np.squeeze(mask.cpu().numpy())
         accepted_validation_images += 1
@@ -207,7 +222,10 @@ def run_eval(organelle: str, device: str, unet: UNet, stats_power = 100, patch_s
             pred = unet(image)
         pred = pred.cpu().detach().numpy()
         pred_labels = generate_labels(pred)
-    # TODO
+        measures_instance = evaluate(gt_labels, pred_labels)
+        collected_metrics.append(measures_instance)
+    reduced_metrics = reduce_multiple_measures(collected_metrics)
+    computed_metrics = pass
 
 if __name__ == '__main__':
     organelle = 'ld'
