@@ -294,3 +294,15 @@ unet = UNet(
     padding="same",
     upsample_mode="nearest",
 )
+
+valid_unet = UNet(
+    depth=4,
+    in_channels=1,
+    out_channels=2,
+    final_activation="Sigmoid",
+    num_fmaps=64,
+    fmap_inc_factor=3,
+    downsample_factor=2,
+    padding="valid",
+    upsample_mode="nearest",
+)
