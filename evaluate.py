@@ -11,31 +11,9 @@ from skimage.filters import threshold_otsu
 from scipy.ndimage import distance_transform_edt
 from matplotlib import pyplot as plt
 from matplotlib import ticker, gridspec
+from model import UNet
 
-# category is one of 'mito', 'ld', 'nucleus'
-organelle = 'ld'
 
-device = "cuda"  # 'cuda', 'cpu', 'mps'
-assert torch.cuda.is_available()
-
-model_name = f"pokemon-unet-{organelle}"
-unet = torch.load(f=f"weights/{model_name}.pt")
-
-# return mask must be true here!
-val_dataset = EMDataset(root_dir='validate/', category=organelle, return_mask=True)
-val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=8)
-
-unet.eval()
-
-(
-    precision_list,
-    recall_list,
-    accuracy_list,
-) = (
-    [],
-    [],
-    [],
-)
 
 def find_local_maxima(distance_transform, min_dist_between_points):
     # Use `maximum_filter` to perform a maximum filter convolution on the distance_transform
@@ -161,30 +139,48 @@ def watershed_from_boundary_distance(
 
     return segmentation
 
+def run_eval(organelle: str, device: str, unet: UNet):
+    # category is one of 'mito', 'ld', 'nucleus'
+    # return mask must be true here!
+    val_dataset = EMDataset(root_dir='validate/', category=organelle, return_mask=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=8)
+    unet.eval()
+    (precision_list, recall_list, accuracy_list) = ([], [], [])
+    for loaded_vals in tqdm(val_dataloader):
+        mask = loaded_vals.pop()
+        image, _ = loaded_vals
+        image = image.to(device).unsqueeze(0)
+        with torch.no_grad():
+            pred = unet(image)
+        image = np.squeeze(image.cpu())
+        gt_labels = np.squeeze(mask.cpu().numpy())
+        pred = np.squeeze(pred.cpu().detach().numpy())
+        # feel free to try different thresholds
+        thresh = threshold_otsu(pred)
+        # get boundary mask
+        inner_mask = 0.5 * (pred[0] + pred[1]) > thresh
+        boundary_distances = distance_transform_edt(inner_mask)
+        pred_labels = watershed_from_boundary_distance(
+            boundary_distances, inner_mask, id_offset=0, min_seed_distance=20
+        )
+        precision, recall, accuracy = evaluate(gt_labels, pred_labels)
+        precision_list.append(precision)
+        recall_list.append(recall)
+        accuracy_list.append(accuracy)
 
-for idx, (image, _, mask) in enumerate(tqdm(val_dataloader)):
-    image = image.to(device).unsqueeze(0)
-    with torch.no_grad():
-        pred = unet(image)
-    image = np.squeeze(image.cpu())
-    gt_labels = np.squeeze(mask.cpu().numpy())
-    pred = np.squeeze(pred.cpu().detach().numpy())
-    # feel free to try different thresholds
-    thresh = threshold_otsu(pred)
-    # get boundary mask
-    inner_mask = 0.5 * (pred[0] + pred[1]) > thresh
-    boundary_distances = distance_transform_edt(inner_mask)
-    pred_labels = watershed_from_boundary_distance(
-        boundary_distances, inner_mask, id_offset=0, min_seed_distance=20
-    )
-    precision, recall, accuracy = evaluate(gt_labels, pred_labels)
-    precision_list.append(precision)
-    recall_list.append(recall)
-    accuracy_list.append(accuracy)
+    metrics = {'precision': precision_list,
+               'recall': recall_list,
+               'accuracy': accuracy_list
+               }
+    mean_metrics = {key: np.mean(val) for key,val in metrics.items()}
+    return mean_metrics
 
-plot_four(image, mask[0], pred[0], pred_labels, label=f"Target")
-
-print(f"Mean {organelle} Precision is {np.mean(precision_list):.3f}")
-print(f"Mean {organelle} Recall is {np.mean(recall_list):.3f}")
-print(f"Mean {organelle} Accuracy is {np.mean(accuracy_list):.3f}")
-    
+if __name__ == '__main__':
+    organelle = 'ld'
+    device = "cuda"  # 'cuda', 'cpu', 'mps'
+    assert torch.cuda.is_available()
+    model_name = f"pokemon-unet-{organelle}"
+    unet = torch.load(f=f"weights/{model_name}.pt")
+    metrics_avg = run_eval(organelle, device, unet)
+    for val_name,val in metrics_avg.items():
+        print(f"Mean {val_name} for {organelle} with model {model_name} is {val:.3f}")
