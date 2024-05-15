@@ -1,7 +1,6 @@
 import torch
 from dataset import EMDataset
-from torch.utils.data import DataLoader
-from tqdm import tqdm
+from torch.utils.data import DataLoader, RandomSampler
 import numpy as np
 from skimage.segmentation import relabel_sequential
 from scipy.optimize import linear_sum_assignment
@@ -12,8 +11,8 @@ from scipy.ndimage import distance_transform_edt
 from matplotlib import pyplot as plt
 from matplotlib import ticker, gridspec
 from model import UNet
-
-
+from torchvision.transforms import v2
+from collections import defaultdict
 
 def find_local_maxima(distance_transform, min_dist_between_points):
     # Use `maximum_filter` to perform a maximum filter convolution on the distance_transform
@@ -58,48 +57,54 @@ def plot_four(
     plt.tight_layout()
     plt.show()
 
-def evaluate(gt_labels: np.ndarray, pred_labels: np.ndarray, th: float = 0.5):
+def evaluate(gt_labels: np.ndarray, pred_labels: np.ndarray, 
+             th: float = 0.5, epsilon=1e-3) -> tuple[bool, dict]:
     """Function to evaluate a segmentation."""
-
+    # values to be returned
+    metrics = {}
+    # computation
     pred_labels_rel, _, _ = relabel_sequential(pred_labels)
     gt_labels_rel, _, _ = relabel_sequential(gt_labels.astype(np.uint8))
-
     overlay = np.array([pred_labels_rel.flatten(), gt_labels_rel.flatten()])
-
     # get overlaying cells and the size of the overlap
     overlay_labels, overlay_labels_counts = np.unique(
         overlay, return_counts=True, axis=1
     )
     overlay_labels = np.transpose(overlay_labels)
-
+    # look at total pixel overlap
+    pred_pixel = np.sum(pred_labels_rel > 0)
+    gt_pixel = np.sum(gt_labels_rel > 0)
+    union_pixels = np.sum((pred_labels_rel + gt_labels_rel) > 0)
+    common_pixels = gt_pixel + pred_pixel - union_pixels
+    tp = common_pixels
+    fp = pred_pixel - common_pixels
+    fn = gt_pixel - common_pixels
+    metrics['precision-pixel-overlap'] = tp / max(1, tp + fp)
+    metrics['recall-pixel-overlap'] = tp / max(1, tp + fn)
+    metrics['accuracy-pixel-overlap'] = tp / (tp + fp + fn)
+    metrics['F1-pixel-overlap'] = 2*metrics['precision-pixel-overlap']*metrics['recall-pixel-overlap'] / \
+        (metrics['recall-pixel-overlap']+metrics['precision-pixel-overlap']+epsilon)
+    # TODO remove #print(f'common {common_pixels} pred {only_pred_pixel} gt {only_gt_pixel}')
     # get gt cell ids and the size of the corresponding cell
     gt_labels_list, gt_counts = np.unique(gt_labels_rel, return_counts=True)
     gt_labels_count_dict = {}
-
     for l, c in zip(gt_labels_list, gt_counts):
         gt_labels_count_dict[l] = c
-
     # get pred cell ids
     pred_labels_list, pred_counts = np.unique(pred_labels_rel, return_counts=True)
-
     pred_labels_count_dict = {}
     for l, c in zip(pred_labels_list, pred_counts):
         pred_labels_count_dict[l] = c
-
     num_pred_labels = int(np.max(pred_labels_rel))
     num_gt_labels = int(np.max(gt_labels_rel))
     num_matches = min(num_gt_labels, num_pred_labels)
-
     # create iou table
     iouMat = np.zeros((num_gt_labels + 1, num_pred_labels + 1), dtype=np.float32)
-
     for (u, v), c in zip(overlay_labels, overlay_labels_counts):
         iou = c / (gt_labels_count_dict[v] + pred_labels_count_dict[u] - c)
         iouMat[int(v), int(u)] = iou
-
     # remove background
     iouMat = iouMat[1:, 1:]
-
     # use IoU threshold th
     if num_matches > 0 and np.max(iouMat) > th:
         costs = -(iouMat > th).astype(float) - iouMat / (2 * num_matches)
@@ -111,11 +116,12 @@ def evaluate(gt_labels: np.ndarray, pred_labels: np.ndarray, th: float = 0.5):
         tp = 0
     fp = num_pred_labels - tp
     fn = num_gt_labels - tp
-    precision = tp / max(1, tp + fp)
-    recall = tp / max(1, tp + fn)
-    accuracy = tp / (tp + fp + fn)
-
-    return precision, recall, accuracy
+    metrics['precision-detections'] = tp / max(1, tp + fp)
+    metrics['recall-detections'] = tp / max(1, tp + fn)
+    metrics['accuracy-detections'] = tp / (tp + fp + fn)
+    metrics['F1-detections'] = 2*metrics['precision-detections']*metrics['recall-detections'] / \
+        (metrics['recall-detections']+metrics['precision-detections']+epsilon)
+    return num_gt_labels+num_pred_labels>0, metrics
 
 def watershed_from_boundary_distance(
     boundary_distances: np.ndarray,
@@ -124,36 +130,41 @@ def watershed_from_boundary_distance(
     min_seed_distance: int = 10,
 ):
     """Function to compute a watershed from boundary distances."""
-
     seeds, n = find_local_maxima(boundary_distances, min_seed_distance)
-
     if n == 0:
         return np.zeros(boundary_distances.shape, dtype=np.uint64), id_offset
-
     seeds[seeds != 0] += id_offset
-
     # calculate our segmentation
     segmentation = watershed(
         boundary_distances.max() - boundary_distances, seeds, mask=inner_mask
     )
-
     return segmentation
 
-def run_eval(organelle: str, device: str, unet: UNet):
+def run_eval(organelle: str, device: str, unet: UNet, stats_power = 100, quit_thres = 300) -> dict:
     # category is one of 'mito', 'ld', 'nucleus'
     # return mask must be true here!
-    val_dataset = EMDataset(root_dir='validate/', category=organelle, return_mask=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=8)
+    val_dataset = EMDataset(root_dir='validate/', category=organelle, 
+                            return_mask=True, transform=v2.RandomCrop(256))
+    val_sampler = RandomSampler(data_source=val_dataset, replacement=True, num_samples=quit_thres+10)
+    val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=8, sampler=val_sampler)
     unet.eval()
-    (precision_list, recall_list, accuracy_list) = ([], [], [])
-    for loaded_vals in tqdm(val_dataloader):
+    metrics_dict = defaultdict(list)
+    accepted_validation_images, seen_images = 0, 0
+    for loaded_vals in val_dataloader:
+        if accepted_validation_images > stats_power:
+            break
+        if seen_images > quit_thres:
+            print(f'Failed to get enough examples of {organelle} from random patches')
+            break
+        seen_images += 1
         mask = loaded_vals.pop()
+        gt_labels = np.squeeze(mask.cpu().numpy())
+        accepted_validation_images += 1
         image, _ = loaded_vals
         image = image.to(device).unsqueeze(0)
         with torch.no_grad():
             pred = unet(image)
         image = np.squeeze(image.cpu())
-        gt_labels = np.squeeze(mask.cpu().numpy())
         pred = np.squeeze(pred.cpu().detach().numpy())
         # feel free to try different thresholds
         thresh = threshold_otsu(pred)
@@ -163,17 +174,19 @@ def run_eval(organelle: str, device: str, unet: UNet):
         pred_labels = watershed_from_boundary_distance(
             boundary_distances, inner_mask, id_offset=0, min_seed_distance=20
         )
-        precision, recall, accuracy = evaluate(gt_labels, pred_labels)
-        precision_list.append(precision)
-        recall_list.append(recall)
-        accuracy_list.append(accuracy)
-
-    metrics = {'precision': precision_list,
-               'recall': recall_list,
-               'accuracy': accuracy_list
-               }
-    mean_metrics = {key: np.mean(val) for key,val in metrics.items()}
-    return mean_metrics
+        is_valid, new_metrics = evaluate(gt_labels, pred_labels)
+        #TODO # put back or delete
+        #print(new_metrics)
+        #plot_four(image, mask.squeeze(), inner_mask, pred_labels)
+        if not is_valid:
+            continue
+        else:
+            accepted_validation_images += 1
+        for metric_name, metric_val in new_metrics.items():
+            metrics_dict[metric_name].append(metric_val)
+    mean_metrics = {keym: np.mean(valuesm) for keym,valuesm in metrics_dict.items()}
+    std_metrics = {keys: np.std(valuess) for keys,valuess in metrics_dict.items()}
+    return {'mean': mean_metrics, 'std': std_metrics}
 
 if __name__ == '__main__':
     organelle = 'ld'
@@ -182,5 +195,6 @@ if __name__ == '__main__':
     model_name = f"pokemon-unet-{organelle}"
     unet = torch.load(f=f"weights/{model_name}.pt")
     metrics_avg = run_eval(organelle, device, unet)
-    for val_name,val in metrics_avg.items():
-        print(f"Mean {val_name} for {organelle} with model {model_name} is {val:.3f}")
+    for measurement in metrics_avg:
+        for val_name,val in metrics_avg[measurement].items():
+            print(f"{measurement} {val_name} for {organelle} with model {model_name} is {val:.3f}")

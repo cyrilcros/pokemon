@@ -5,22 +5,13 @@ from model import unet
 from tqdm import tqdm
 from dataset import EMDataset, transform_to_do
 from torch.utils.tensorboard import SummaryWriter
+from evaluate import run_eval
 
 # category is one of 'mito', 'ld', 'nucleus'
 organelle = 'ld'
 
-def train(
-    model,
-    loader,
-    optimizer,
-    loss_function,
-    epoch,
-    log_interval=100,
-    log_image_interval=20,
-    tb_logger=None,
-    device=None,
-    early_stop=False,
-):
+def train(model, organelle, loader, optimizer, loss_function, epoch, log_image_interval = 20,
+          log_validate_interval = 40, tb_logger=None, device=None, early_stop=False):
     if device is None:
         # You can pass in a device or we will default to using
         # the gpu. Feel free to try training on the cpu to see
@@ -29,45 +20,25 @@ def train(
             device = torch.device("cuda")
         else:
             device = torch.device("cpu")
-
     # set the model to train mode
     model.train()
-
     # move model to device
     model = model.to(device)
-
     # iterate over the batches of this epoch
     for batch_id, (x, y) in enumerate(loader):
+        # zero the gradients for this iteration
+        optimizer.zero_grad()
         # move input and target to the active device (either cpu or gpu)
         x, y = x.to(device), y.to(device)
         x = x.unsqueeze(1)
-        # zero the gradients for this iteration
-        optimizer.zero_grad()
-
         # apply model and calculate loss
         prediction = model(x)
-        # if prediction.shape != y.shape: #remove TODO
-        #     y = crop(y, prediction)
         if y.dtype != prediction.dtype:
             y = y.type(prediction.dtype)
         loss = loss_function(prediction, y)
-
         # backpropagate the loss and adjust the parameters
         loss.backward()
         optimizer.step()
-
-        # log to console
-        if batch_id % log_interval == 0:
-            print(
-                "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
-                    epoch,
-                    batch_id * len(x),
-                    len(loader.dataset),
-                    100.0 * batch_id / len(loader),
-                    loss.item(),
-                )
-            )
-
         # log to tensorboard
         if tb_logger is not None:
             step = epoch * len(loader) + batch_id
@@ -91,6 +62,13 @@ def train(
                     img_tensor = (0.5 * img_pred[:,0] + 0.5*img_pred[:,1]).unsqueeze(dim=1),
                     global_step=step
                 )
+            if step % log_validate_interval == 0:
+                avg_metrics = run_eval(organelle=organelle, device=device, unet=model)
+                for metric_name, metric_value in avg_metrics['mean'].items():
+                    tb_logger.add_scalar(
+                        tag=f"val_{metric_name}", scalar_value=metric_value, global_step=step
+                    )
+                model.train()
 
         if early_stop and batch_id > 5:
             print("Stopping test early!")
@@ -120,14 +98,16 @@ epoch = 30
 
 for epoch in range(epoch):
     train(
-        unet,
-        train_loader,
-        optimizer,
-        loss,
-        epoch,
+        model = unet,
+        organelle=organelle,
+        loader=train_loader,
+        optimizer=optimizer,
+        loss_function=loss,
+        epoch=epoch,
         tb_logger=logger,
-        log_interval=10,
-        device=device,
+        log_image_interval=20,
+        log_validate_interval=40,
+        device=device
     )
 
 weight_folder = 'weights'
