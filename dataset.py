@@ -1,5 +1,5 @@
 from torch.utils.data import Dataset
-from torchvision.transforms import v2
+from torchvision.transforms import v2, InterpolationMode
 import os
 import torch
 from PIL import Image
@@ -78,8 +78,8 @@ class EMDataset(Dataset):
     def __getitem__(self, idx):
         # we'll be using Pillow library for reading files
         # since many torchvision transforms operate on PIL images
-        image = self.loaded_imgs[idx][0]
-        mask = self.loaded_masks[idx][0]
+        image = self.loaded_imgs[idx]
+        mask = self.loaded_masks[idx]
         if self.transform is not None:
             # Note: using seeds to ensure the same random transform is applied to
             # the image and mask
@@ -90,6 +90,8 @@ class EMDataset(Dataset):
             mask = self.transform(mask)
         if self.img_transform is not None:
             image = self.img_transform(image)
+        image = image[0]
+        mask = mask[0]
         aff_mask = self.create_aff_target(mask)
         if self.return_mask is True:
             return image, aff_mask, mask
@@ -156,7 +158,7 @@ def show_random_dataset_image(dataset, nb: int, use_mask=True):
         if use_mask:
             img, affinities, mask = dataset[idx]  # get the image and the nuclei masks
         else:
-            img, affinities = dataset[idx[0]]
+            img, affinities = dataset[idx]
         axarr[pos,0].imshow(img)  # show the image
         axarr[pos,1].imshow(affinities[0], alpha=0.5, cmap="Reds")
         axarr[pos,1].imshow(affinities[1], alpha=0.5, cmap="Greens")
@@ -168,8 +170,15 @@ def show_random_dataset_image(dataset, nb: int, use_mask=True):
     print("Image size is %s" % {img.shape})
     plt.tight_layout()
     plt.show()
+
+transform_to_do = v2.Compose([
+    v2.RandomRotation(degrees=(0,180),interpolation= InterpolationMode.BILINEAR),
+    v2.RandomCrop(256),
+    v2.RandomHorizontalFlip(p=0.5),
+    v2.RandomVerticalFlip(p=0.5)
+])
    
 if __name__ == '__main__':
-    train_dataset = EMDataset(root_dir='train', category='nucleus', return_mask=True)
+    train_dataset = EMDataset(root_dir='train', category='ld', return_mask=True, transform=transform_to_do)
     print(f"Loaded a dataset {train_dataset}")
-    show_random_dataset_image(train_dataset, nb=5, use_mask=True)
+    show_random_dataset_image(train_dataset, nb=10, use_mask=True)

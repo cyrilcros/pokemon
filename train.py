@@ -1,16 +1,9 @@
-from matplotlib.colors import ListedColormap
-import numpy as np
 import os
 import torch
-from PIL import Image
 from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
-from torchvision import transforms
-from scipy.ndimage import distance_transform_edt
 from model import unet
 from tqdm import tqdm
-from skimage.filters import threshold_otsu
-from dataset import EMDataset
+from dataset import EMDataset, transform_to_do
 from torch.utils.tensorboard import SummaryWriter
 
 # category is one of 'mito', 'ld', 'nucleus'
@@ -112,7 +105,7 @@ assert torch.cuda.is_available()
 model_name = f"pokemon-unet-{organelle}"
 
 # returns image 1000x1000, affinity 2x1000x1000, and if return_mask a mask 1000x1000
-train_dataset = EMDataset(root_dir='train', category=organelle, return_mask=False, transform=transforms.RandomCrop(256))
+train_dataset = EMDataset(root_dir='train', category=organelle, return_mask=False, transform=transform_to_do)
 
 # dataloader from train dataset
 train_loader = DataLoader(train_dataset, batch_size=5, shuffle=True, num_workers=8)
