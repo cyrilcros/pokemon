@@ -12,7 +12,33 @@ from matplotlib import pyplot as plt
 from matplotlib import ticker, gridspec
 from model import UNet
 from torchvision.transforms import v2
-from collections import defaultdict
+
+def plot_three(
+    image: np.ndarray, intermediate: np.ndarray, pred: np.ndarray, label: str = "Target"
+):
+    """
+    Helper function to plot an image, the auxiliary (intermediate)
+    representation of the target and the model prediction.
+    """
+    fig = plt.figure(constrained_layout=False, figsize=(10, 3))
+    spec = gridspec.GridSpec(ncols=3, nrows=1, figure=fig)
+    ax1 = fig.add_subplot(spec[0, 0])
+    ax1.set_xlabel("Image", fontsize=20)
+    plt.imshow(image, cmap="magma")
+    ax2 = fig.add_subplot(spec[0, 1])
+    ax2.set_xlabel(label, fontsize=20)
+    plt.imshow(intermediate, cmap="magma")
+    ax3 = fig.add_subplot(spec[0, 2])
+    ax3.set_xlabel("Prediction", fontsize=20)
+    t = plt.imshow(pred, cmap="magma")
+    cbar = fig.colorbar(t, fraction=0.046, pad=0.04)
+    tick_locator = ticker.MaxNLocator(nbins=3)
+    cbar.locator = tick_locator
+    cbar.update_ticks()
+    _ = [ax.set_xticks([]) for ax in [ax1, ax2, ax3]]  # remove the xticks
+    _ = [ax.set_yticks([]) for ax in [ax1, ax2, ax3]]  # remove the yticks
+    plt.tight_layout()
+    plt.show()
 
 def find_local_maxima(distance_transform, min_dist_between_points):
     # Use `maximum_filter` to perform a maximum filter convolution on the distance_transform
@@ -21,41 +47,6 @@ def find_local_maxima(distance_transform, min_dist_between_points):
     # Uniquely label the local maxima
     seeds, n = label(maxima)
     return seeds, n
-
-def plot_four(
-    image: np.ndarray,
-    intermediate: np.ndarray,
-    pred: np.ndarray,
-    seg: np.ndarray,
-    label: str = "Target",
-    cmap: str = "nipy_spectral",
-):
-    """
-    Helper function to plot an image, the auxiliary (intermediate)
-    representation of the target, the model prediction and the predicted segmentation mask.
-    """
-    fig = plt.figure(constrained_layout=False, figsize=(10, 3))
-    spec = gridspec.GridSpec(ncols=4, nrows=1, figure=fig)
-    ax1 = fig.add_subplot(spec[0, 0])
-    ax1.imshow(image)  # show the image
-    ax1.set_xlabel("Image", fontsize=20)
-    ax2 = fig.add_subplot(spec[0, 1])
-    ax2.imshow(intermediate)  # show the masks
-    ax2.set_xlabel(label, fontsize=20)
-    ax3 = fig.add_subplot(spec[0, 2])
-    t = ax3.imshow(pred)
-    ax3.set_xlabel("Pred.", fontsize=20)
-    tick_locator = ticker.MaxNLocator(nbins=3)
-    cbar = fig.colorbar(t, fraction=0.046, pad=0.04)
-    cbar.locator = tick_locator
-    cbar.update_ticks()
-    ax4 = fig.add_subplot(spec[0, 3])
-    ax4.imshow(seg, cmap=cmap, interpolation="none")
-    ax4.set_xlabel("Seg.", fontsize=20)
-    _ = [ax.set_xticks([]) for ax in [ax1, ax2, ax3, ax4]]  # remove the xticks
-    _ = [ax.set_yticks([]) for ax in [ax1, ax2, ax3, ax4]]  # remove the yticks
-    plt.tight_layout()
-    plt.show()
 
 def watershed_from_boundary_distance(
     boundary_distances: np.ndarray,
@@ -83,7 +74,7 @@ def generate_labels(pred: np.ndarray) -> np.array:
     Returns:
         np.array: Segmented instance
     """
-    pred = np.squeeze(pred)
+    pred = pred
     # feel free to try different thresholds
     thresh = threshold_otsu(pred)
     # get boundary mask
@@ -155,7 +146,7 @@ def instance_overlap_measure(pred_labels: np.ndarray, gt_labels: np.ndarray, th:
     fn = num_gt_labels - tp
     return {'tp': tp, 'fp': fp, 'fn': fn}
 
-def evaluate(gt_labels: np.ndarray, pred_labels: np.ndarray) -> dict[str: dict[str: int]]:
+def evaluate_tp_fp_fn(gt_labels: np.ndarray, pred_labels: np.ndarray) -> dict[str: dict[str: int]]:
     """Will compute various measures comparing ground truth and predicted segmentations
 
     Returns:
@@ -224,10 +215,11 @@ def run_eval(organelle: str, device: str, unet: UNet, stats_power = 100, patch_s
         image = image.to(device).unsqueeze(0)
         with torch.no_grad():
             pred = unet(image)
-        pred = pred.cpu().detach().numpy()
+        pred = pred.cpu().detach().numpy().squeeze()
         pred_labels = generate_labels(pred)
-        measures_instance = evaluate(gt_labels, pred_labels)
+        measures_instance = evaluate_tp_fp_fn(gt_labels, pred_labels)
         collected_metrics.append(measures_instance)
+        #plot_three(image=image.cpu().detach().numpy().squeeze(), intermediate=gt_labels, pred=pred_labels)
     reduced_measures = reduce_multiple_measures(collected_metrics)
     metrics = compute_metrics(reduced_measures)
     return reduced_measures, metrics

@@ -63,11 +63,12 @@ def train(model, organelle, loader, optimizer, loss_function, epoch, log_image_i
                     global_step=step
                 )
             if step % log_validate_interval == 0:
-                avg_metrics = run_eval(organelle=organelle, device=device, unet=model)
-                for metric_name, metric_value in avg_metrics['mean'].items():
-                    tb_logger.add_scalar(
-                        tag=f"val_{metric_name}", scalar_value=metric_value, global_step=step
-                    )
+                _, avg_metrics = run_eval(organelle=organelle, device=device, unet=model)
+                for measure_name, metric_dict in avg_metrics.items():
+                    for metric_name in metric_dict.keys():
+                        tb_logger.add_scalar(
+                            tag=f"{measure_name}_{metric_name}", scalar_value=avg_metrics[measure_name][metric_name], global_step=step
+                        )
                 model.train()
 
         if early_stop and batch_id > 5:
