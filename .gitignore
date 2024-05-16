@@ -5,6 +5,7 @@ weights/*
 daisy_logs/*
 full_pred_example*
 */.tif*
+*.mov
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
