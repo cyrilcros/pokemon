@@ -10,7 +10,7 @@ import zarr
 # image = tifffile.imread("testimage/HM25_HighRes_Aligned0050(1).tif")
 image = zarr.open("test_data.zarr")["raw"][0, :, :]
 image = (
-    transforms.Normalize([0.5], [0.5])(image)
+    transforms.Normalize([0.5], [0.5])(transforms.ToTensor()(image))
     .unsqueeze(0)
     .float()
     .numpy()
