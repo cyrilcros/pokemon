@@ -230,7 +230,7 @@ def run_eval(organelle: str, device: str, unet: UNet, stats_power = 100, patch_s
         collected_metrics.append(measures_instance)
     reduced_measures = reduce_multiple_measures(collected_metrics)
     metrics = compute_metrics(reduced_measures)
-    return metrics
+    return reduced_measures, metrics
 
 if __name__ == '__main__':
     organelle = 'ld'
@@ -238,7 +238,10 @@ if __name__ == '__main__':
     assert torch.cuda.is_available()
     model_name = f"pokemon-unet-{organelle}"
     unet = torch.load(f=f"weights/{model_name}.pt")
-    metrics_avg = run_eval(organelle, device, unet)
-    for measurement in metrics_avg:
-        for val_name,val in metrics_avg[measurement].items():
+    aggregate, metrics = run_eval(organelle, device, unet)
+    for measurement in metrics:
+        for val_name,val in metrics[measurement].items():
             print(f"{measurement} {val_name} for {organelle} with model {model_name} is {val:.3f}")
+    for measurement in aggregate:
+        print(f"{measurement} {val_name} for {organelle} with model {model_name}: {", ".join([
+            tp+":" + str(tpval) for tp,tpval in aggregate[measurement].items()])}")
