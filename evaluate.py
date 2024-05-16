@@ -160,7 +160,7 @@ def evaluate(gt_labels: np.ndarray, pred_labels: np.ndarray) -> dict[str: dict[s
 
     Returns:
         dict[str: dict[str: int]] Associates a measurement name with a dict of true/false
-        positive/negative
+        positive/negative counts
     """
     # values to be returned
     measures = {}
@@ -172,25 +172,30 @@ def evaluate(gt_labels: np.ndarray, pred_labels: np.ndarray) -> dict[str: dict[s
     return measures
 
 def reduce_multiple_measures(measure_dict_list: list[dict]) -> dict:
-    """_summary_
+    """Aggregates dictonary of measurements across validation examples
 
     Args:
-        measure_dict_list (list[dict]): _description_
+        measure_dict_list (list[dict]): A list of dictionaries mapping measure names to
+        true/false positive/negative counts
 
     Returns:
-        dict: _description_
+        dict: Summed totals of measures/counts across validation examples
     """
-    measures_merged = defaultdict(int)
+    measures_merged = {}
     for measure_dict in measure_dict_list:
-        for key, val in measure_dict.items():
-            measures_merged[key] += val
+        for measure_name, dict_tp_fp in measure_dict.items():
+            if not measure_name in measures_merged:
+                measures_merged[measure_name] = {}
+            for tp_str, tp_val in dict_tp_fp.items():
+                if not tp_str in measures_merged[measure_name]:
+                    measures_merged[measure_name][tp_str] = 0
+                measures_merged[measure_name][tp_str] += tp_val
     return measures_merged
 
-def computed_metrics(measures: dict[str: dict[str: int]], epsilon = 1e-3) -> dict[str: dict[str: int]]:
-    """_summary_
-
+def compute_metrics(measures: dict[str: dict[str: int]], epsilon = 1e-3) -> dict[str: dict[str: int]]:
+    """Applies various summary metrics (F1, precision) to true/false positive/negative counts
     Returns:
-        _type_: _description_
+        dict: A dict of metrics
     """
     metrics = {
         'precision': lambda vals : vals['tp'] / max(1, vals['tp'] + vals['fp']),
@@ -210,12 +215,11 @@ def run_eval(organelle: str, device: str, unet: UNet, stats_power = 100, patch_s
                             return_mask=True, transform=v2.RandomCrop(patch_size))
     val_sampler = RandomSampler(data_source=val_dataset, replacement=True, num_samples=stats_power+1)
     val_dataloader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=8, sampler=val_sampler)
-    for loaded_vals in val_dataloader:
-        if accepted_validation_images > stats_power:
+    for idx,loaded_vals in enumerate(val_dataloader):
+        if idx > stats_power:
             break
         mask = loaded_vals.pop()
         gt_labels = np.squeeze(mask.cpu().numpy())
-        accepted_validation_images += 1
         image, _ = loaded_vals
         image = image.to(device).unsqueeze(0)
         with torch.no_grad():
@@ -224,8 +228,9 @@ def run_eval(organelle: str, device: str, unet: UNet, stats_power = 100, patch_s
         pred_labels = generate_labels(pred)
         measures_instance = evaluate(gt_labels, pred_labels)
         collected_metrics.append(measures_instance)
-    reduced_metrics = reduce_multiple_measures(collected_metrics)
-    computed_metrics = pass
+    reduced_measures = reduce_multiple_measures(collected_metrics)
+    metrics = compute_metrics(reduced_measures)
+    return metrics
 
 if __name__ == '__main__':
     organelle = 'ld'
