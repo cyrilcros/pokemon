@@ -65,14 +65,15 @@ def watershed_from_boundary_distance(
     )
     return segmentation
 
-def generate_labels(pred: np.ndarray) -> np.array: 
+def generate_labels(pred: np.ndarray, pixel_thres:int = 750) -> np.array: 
     """ Instance segmentation via watershed postprocessing
 
     Args:
-        pred (np.array): Predictions with affinities / LSDs whatever
+        pred (np.ndarray): Predictions with affinities / LSDs whatever
+        pixel_thres (int): discard labels with less than thres pixel
 
     Returns:
-        np.array: Segmented instance
+        np.ndarray: Segmented instance
     """
     pred = pred
     # feel free to try different thresholds
@@ -83,6 +84,12 @@ def generate_labels(pred: np.ndarray) -> np.array:
     pred_labels = watershed_from_boundary_distance(
         boundary_distances, inner_mask, id_offset=0, min_seed_distance=20
     )
+    # ditch small areas
+    unique_vals, unique_counts = np.unique(pred_labels, return_counts=True)
+    for idx,label in enumerate(unique_vals):
+        if unique_counts[idx] < pixel_thres and label != 0:
+            pred_labels[np.where(pred_labels == label)] = 0
+    #TODO to check can remove #_, unique_counts = np.unique(pred_labels, return_counts=True)
     return pred_labels
 
 def pixel_overlap_measure(pred_labels: np.ndarray, gt_labels: np.ndarray) -> dict[str: int] :
