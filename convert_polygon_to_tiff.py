@@ -98,6 +98,11 @@ if __name__ == '__main__':
         original_image_dir='/group/dl4miacourse/pokemon/data-chad/First40training_last10validation/First40_training_images/',
         categories=categories
     )
+    categories = [
+        (3, "mito"),
+        (2, "ld"),
+        (1, "nucleus")
+    ]
     # validate
     main(
         json_file='/group/dl4miacourse/pokemon/data-chad/First40training_last10validation/Last10_validation_annotations/labels_89-98_Validation_2023-10-17-11-51-50.json', 
