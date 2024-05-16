@@ -2,13 +2,13 @@ import os
 import torch
 from torch.utils.data import DataLoader
 from model import unet
-from tqdm import tqdm
 from dataset import EMDataset, transform_to_do
 from torch.utils.tensorboard import SummaryWriter
 from evaluate import run_eval
+import tqdm
 
 # category is one of 'mito', 'ld', 'nucleus'
-organelle = 'ld'
+organelle = 'nucleus'
 
 def train(model, organelle, loader, optimizer, loss_function, epoch, log_image_interval = 20,
           log_validate_interval = 40, tb_logger=None, device=None, early_stop=False):
@@ -95,9 +95,10 @@ logger = SummaryWriter(f"runs/{model_name}")
 learning_rate = 1e-4
 loss = torch.nn.BCELoss()
 optimizer = torch.optim.Adam(unet.parameters(), lr=learning_rate)
-epoch = 30
+scheduler = torch.optim.lr_scheduler.LinearLR(optimizer=optimizer, start_factor=1e-4, total_iters=30)
+epoch = 100
 
-for epoch in range(epoch):
+for epoch in tqdm.tqdm(range(epoch)):
     train(
         model = unet,
         organelle=organelle,
@@ -110,6 +111,7 @@ for epoch in range(epoch):
         log_validate_interval=40,
         device=device
     )
+    scheduler.step()
 
 weight_folder = 'weights'
 if not os.path.exists(weight_folder):
